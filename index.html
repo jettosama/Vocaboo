@@ -86,6 +86,9 @@
             display: none;
             margin-top: 20px;
         }
+        
+        #mainMenu { display: none; } /* Hidden initially while loading */
+        #loadingScreen { margin-top: 40px; font-size: 18px; font-weight: bold; color: var(--primary-color); }
 
         /* Flashcard Styles */
         .flashcard {
@@ -258,6 +261,13 @@
             color: #666;
             margin-bottom: 10px;
         }
+        #syncStatus {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -265,9 +275,13 @@
 <div class="container">
     <h1>Life In The UK Vocabulary</h1>
     
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        ☁️ Loading cloud progress...
+    </div>
+
     <!-- Main Menu -->
     <div id="mainMenu">
-        <p id="subtitle">Select a mode to learn or test your knowledge!</p>
         <div class="archive-stats" id="archiveStats">
             🏆 Words Mastered (Archived): 0
         </div>
@@ -278,6 +292,7 @@
             <button onclick="startMode('defToWord')">📝 词汇四选一 (Def &rarr; 4 Words)</button>
             <button onclick="startMode('match')">🧩 配对游戏 (Match Game)</button>
         </div>
+        <p id="syncStatus">☁️ Cloud synced successfully!</p>
     </div>
 
     <!-- Flashcard Area -->
@@ -315,17 +330,20 @@
     <div class="app-area" id="matchArea">
         <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
         <p>Match the word to its definition to clear the board!</p>
-        <div class="match-grid" id="matchGrid">
-            <!-- Match cards generated here -->
-        </div>
+        <div class="match-grid" id="matchGrid"></div>
         <div class="feedback" id="matchFeedback"></div>
     </div>
 </div>
 
 <script>
     // ==========================================
-    // 📚 LIFE IN THE UK VOCABULARY 📚
+    // ☁️ CLOUD DATABASE SETTINGS ☁️
     // ==========================================
+    // REPLACE THIS URL WITH YOUR GOOGLE WEB APP URL
+    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxKY3DF79O6vi4PqAsa6pvn3QFvXveYee0ADP_l7snZYRZdN2HSiROYyDsK1KzlBQv_hg/exec
+        "; 
+    // ==========================================
+
     const masterVocabularyList = [
         { word: "Trouble", definition: "问题" },
         { word: "Gaelic", definition: "盖尔语" },
@@ -385,11 +403,11 @@
         { word: "Playwright", definition: "剧作家" },
         { word: "War of the roses", definition: "玫瑰之战" }
     ];
-    // ==========================================
 
     const WORDS_PER_ROUND = 10;
     const MASTERY_TARGET = 5;
 
+    let localProgress = {};
     let roundVocab = [];
     let currentMode = '';
     let currentIndex = 0;
@@ -397,25 +415,49 @@
     let hasAnswered = false;
     let isFirstTry = true;
 
-    function getProgress() {
-        return JSON.parse(localStorage.getItem('ukVocabProgress') || '{}');
-    }
+    // --- Automatic Cloud Fetch on Load ---
+    window.onload = async function() {
+        try {
+            const response = await fetch(CLOUD_URL);
+            localProgress = await response.json();
+            
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            updateArchiveStats();
+        } catch (error) {
+            document.getElementById('loadingScreen').innerText = "❌ Cloud connection failed. Please refresh.";
+            document.getElementById('loadingScreen').style.color = "#dc3545";
+        }
+    };
 
-    function saveProgress(progressObj) {
-        localStorage.setItem('ukVocabProgress', JSON.stringify(progressObj));
-        updateArchiveStats();
+    async function syncToCloud() {
+        document.getElementById('syncStatus').style.opacity = '1';
+        document.getElementById('syncStatus').innerText = "☁️ Syncing...";
+        
+        try {
+            await fetch(CLOUD_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ progress: localProgress })
+            });
+            document.getElementById('syncStatus').innerText = "☁️ Cloud synced successfully!";
+        } catch (error) {
+            document.getElementById('syncStatus').innerText = "❌ Cloud sync failed. Will retry later.";
+            document.getElementById('syncStatus').style.color = "#dc3545";
+        }
+        
+        setTimeout(() => { document.getElementById('syncStatus').style.opacity = '0'; }, 3000);
     }
 
     function incrementMastery(word) {
-        let progress = getProgress();
-        if (!progress[word]) progress[word] = 0;
-        progress[word]++;
-        saveProgress(progress);
+        if (!localProgress[word]) localProgress[word] = 0;
+        localProgress[word]++;
+        updateArchiveStats();
+        syncToCloud(); 
     }
 
     function updateArchiveStats() {
-        let progress = getProgress();
-        let masteredCount = Object.values(progress).filter(count => count >= MASTERY_TARGET).length;
+        let masteredCount = Object.values(localProgress).filter(count => count >= MASTERY_TARGET).length;
         document.getElementById('archiveStats').innerText = `🏆 Words Mastered (Archived): ${masteredCount}`;
     }
 
@@ -429,10 +471,8 @@
     }
 
     function setupRoundVocab() {
-        let progress = getProgress();
-        
         let availableVocab = masterVocabularyList.filter(item => {
-            return (progress[item.word] || 0) < MASTERY_TARGET;
+            return (localProgress[item.word] || 0) < MASTERY_TARGET;
         });
 
         if (availableVocab.length === 0) {
@@ -665,12 +705,8 @@
                 card2.element.classList.remove('selected', 'error');
             }, 800);
         }
-
         matchSelection = [];
     }
-
-    updateArchiveStats();
 </script>
-
 </body>
 </html>
