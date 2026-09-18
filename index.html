@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,12 +43,31 @@
             margin-bottom: 20px;
             display: inline-block;
         }
+        .controls-group {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        select {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+        }
         .menu-buttons {
             display: flex;
             flex-direction: column;
             gap: 15px;
             justify-content: center;
-            margin-top: 20px;
             margin-bottom: 20px;
             max-width: 400px;
             margin-left: auto;
@@ -70,6 +88,12 @@
             background-color: #3243d6;
             transform: translateY(-2px);
         }
+        .action-btn {
+            background-color: #28a745;
+        }
+        .action-btn:hover {
+            background-color: #218838;
+        }
         .back-btn {
             background-color: #6c757d; 
             margin-bottom: 20px; 
@@ -86,6 +110,32 @@
         .app-area {
             display: none;
             margin-top: 20px;
+        }
+        
+        #mainMenu { display: none; } /* Hidden initially while loading */
+        #loadingScreen { margin-top: 40px; font-size: 18px; font-weight: bold; color: var(--primary-color); }
+
+        /* Form Styles */
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
         }
 
         /* Flashcard Styles */
@@ -259,6 +309,13 @@
             color: #666;
             margin-bottom: 10px;
         }
+        #syncStatus {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -266,11 +323,24 @@
 <div class="container">
     <h1>Life In The UK Vocabulary</h1>
     
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        ☁️ Loading cloud data...
+    </div>
+
     <!-- Main Menu -->
     <div id="mainMenu">
-        <p id="subtitle">Select a mode to learn or test your knowledge!</p>
         <div class="archive-stats" id="archiveStats">
-            🏆 Words Mastered (Archived): 0
+            🏆 Total Words Mastered: 0
+        </div>
+
+        <div class="controls-group">
+            <label for="timeFilter" style="font-weight: bold;">Study Words:</label>
+            <select id="timeFilter">
+                <option value="all">All Vocabularies</option>
+                <option value="week">Newly Added (This Week)</option>
+                <option value="month">Newly Added (This Month)</option>
+            </select>
         </div>
         
         <div class="menu-buttons">
@@ -278,7 +348,26 @@
             <button onclick="startMode('wordToDef')">📝 定义四选一 (Word &rarr; 4 Defs)</button>
             <button onclick="startMode('defToWord')">📝 词汇四选一 (Def &rarr; 4 Words)</button>
             <button onclick="startMode('match')">🧩 配对游戏 (Match Game)</button>
+            <hr style="width: 100%; border: 1px solid #e0e0e0; margin: 10px 0;">
+            <button class="action-btn" onclick="openAddWordMenu()">➕ Add New Word</button>
         </div>
+        <p id="syncStatus">☁️ Cloud synced successfully!</p>
+    </div>
+
+    <!-- Add Word Area -->
+    <div class="app-area" id="addWordArea">
+        <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
+        <h2>Add New Vocabulary</h2>
+        <div class="input-group">
+            <label>Word:</label>
+            <input type="text" id="newWordInput" placeholder="e.g. Heritage">
+        </div>
+        <div class="input-group">
+            <label>Definition (Chinese or English):</label>
+            <input type="text" id="newDefInput" placeholder="e.g. 遗产 / 传统">
+        </div>
+        <button class="action-btn" onclick="saveNewWord()" style="width: 100%; max-width: 400px;">Save Word</button>
+        <p id="addFeedback" class="feedback" style="font-size: 16px;"></p>
     </div>
 
     <!-- Flashcard Area -->
@@ -316,88 +405,148 @@
     <div class="app-area" id="matchArea">
         <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
         <p>Match the word to its definition to clear the board!</p>
-        <div class="match-grid" id="matchGrid">
-            <!-- Match cards generated here -->
-        </div>
+        <div class="match-grid" id="matchGrid"></div>
         <div class="feedback" id="matchFeedback"></div>
     </div>
 </div>
 
 <script>
     // ==========================================
-    // 📚 LIFE IN THE UK VOCABULARY 📚
+    // ☁️ CLOUD DATABASE SETTINGS ☁️
     // ==========================================
-    const masterVocabularyList = [
-        { word: "Trouble", definition: "问题" },
-        { word: "Gaelic", definition: "盖尔语" },
-        { word: "Coalition", definition: "联盟" },
-        { word: "Education Act", definition: "教育法" },
-        { word: "Invade", definition: "侵略" },
-        { word: "Colony", definition: "殖民地" },
-        { word: "Invention", definition: "创造" },
-        { word: "Agree", definition: "同意" },
-        { word: "Land", definition: "地" },
-        { word: "Mark", definition: "标" },
-        { word: "Eden", definition: "伊甸园" },
-        { word: "Voting", definition: "投票" },
-        { word: "Compulsory", definition: "必须的" },
-        { word: "Prisoner", definition: "囚犯" },
-        { word: "Criminal", definition: "犯罪" },
-        { word: "Goods", definition: "物品" },
-        { word: "Racial", definition: "种族上的" },
-        { word: "Electoral", definition: "公投" },
-        { word: "Registration", definition: "注册" },
-        { word: "Eligible", definition: "有资格的" },
-        { word: "Principle", definition: "原则 / 原理" },
-        { word: "Fundamental", definition: "基本的 / 根本的" },
-        { word: "Monarch", definition: "君主" },
-        { word: "Skyscraper", definition: "摩天大楼" },
-        { word: "Aeroplanes", definition: "飞机" },
-        { word: "Execute / Execution", definition: "执行 / 处决" },
-        { word: "Suppressed", definition: "镇压 / 压制" },
-        { word: "Annexed", definition: "吞并 / 兼并" },
-        { word: "Allotment", definition: "分配 / 份额" },
-        { word: "Discrimination", definition: "歧视" },
-        { word: "Vehicle", definition: "车辆 / 交通工具" },
-        { word: "Dependency", definition: "依赖 / 附属国" },
-        { word: "Development", definition: "发展 / 开发" },
-        { word: "Orientation", definition: "方向 / 定位" },
-        { word: "Catholic", definition: "天主教" },
-        { word: "Protestants", definition: "新教" },
-        { word: "Crime", definition: "犯罪" },
-        { word: "Tradition", definition: "传统" },
-        { word: "Admiral", definition: "海军上将" },
-        { word: "Associate", definition: "有关联" },
-        { word: "Labour", definition: "工党（劳动）" },
-        { word: "Invasion", definition: "侵略" },
-        { word: "Colonel", definition: "上校" },
-        { word: "Julius Caesar", definition: "凯撒" },
-        { word: "Rugby", definition: "橄榄球" },
-        { word: "Film", definition: "电影" },
-        { word: "Court", definition: "法庭" },
-        { word: "Youth", definition: "青少年" },
-        { word: "Judge", definition: "法官" },
-        { word: "Jury", definition: "陪审团" },
-        { word: "Domestic violence", definition: "家庭暴力" },
-        { word: "Refuge", definition: "避难所" },
-        { word: "Method", definition: "方法" },
-        { word: "Farming", definition: "农业，种植" },
-        { word: "Casualties", definition: "伤亡" },
-        { word: "Playwright", definition: "剧作家" },
-        { word: "War of the roses", definition: "玫瑰之战" }
+    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz6L33ETjbqT_o6HyasdtEhAypwhHM51gfeVqF845Fpxp6FLH0g0VFF99iJSfb63yemYA/exec"; 
+    // ==========================================
+    
+    const defaultVocabularyList = [
+        { word: "Trouble", definition: "问题", dateAdded: 0 },
+        { word: "Gaelic", definition: "盖尔语", dateAdded: 0 },
+        { word: "Coalition", definition: "联盟", dateAdded: 0 },
+        { word: "Education Act", definition: "教育法", dateAdded: 0 },
+        { word: "Invade", definition: "侵略", dateAdded: 0 },
+        { word: "Colony", definition: "殖民地", dateAdded: 0 },
+        { word: "Invention", definition: "创造", dateAdded: 0 },
+        { word: "Agree", definition: "同意", dateAdded: 0 },
+        { word: "Land", definition: "地", dateAdded: 0 },
+        { word: "Mark", definition: "标", dateAdded: 0 },
+        { word: "Eden", definition: "伊甸园", dateAdded: 0 },
+        { word: "Voting", definition: "投票", dateAdded: 0 },
+        { word: "Compulsory", definition: "必须的", dateAdded: 0 },
+        { word: "Prisoner", definition: "囚犯", dateAdded: 0 },
+        { word: "Criminal", definition: "犯罪", dateAdded: 0 },
+        { word: "Goods", definition: "物品", dateAdded: 0 },
+        { word: "Racial", definition: "种族上的", dateAdded: 0 },
+        { word: "Electoral", definition: "公投", dateAdded: 0 },
+        { word: "Registration", definition: "注册", dateAdded: 0 },
+        { word: "Eligible", definition: "有资格的", dateAdded: 0 },
+        { word: "Principle", definition: "原则 / 原理", dateAdded: 0 },
+        { word: "Fundamental", definition: "基本的 / 根本的", dateAdded: 0 },
+        { word: "Monarch", definition: "君主", dateAdded: 0 },
+        { word: "Skyscraper", definition: "摩天大楼", dateAdded: 0 },
+        { word: "Aeroplanes", definition: "飞机", dateAdded: 0 },
+        { word: "Execute / Execution", definition: "执行 / 处决", dateAdded: 0 },
+        { word: "Suppressed", definition: "镇压 / 压制", dateAdded: 0 },
+        { word: "Annexed", definition: "吞并 / 兼并", dateAdded: 0 },
+        { word: "Allotment", definition: "分配 / 份额", dateAdded: 0 },
+        { word: "Discrimination", definition: "歧视", dateAdded: 0 },
+        { word: "Vehicle", definition: "车辆 / 交通工具", dateAdded: 0 },
+        { word: "Dependency", definition: "依赖 / 附属国", dateAdded: 0 },
+        { word: "Development", definition: "发展 / 开发", dateAdded: 0 },
+        { word: "Orientation", definition: "方向 / 定位", dateAdded: 0 },
+        { word: "Catholic", definition: "天主教", dateAdded: 0 },
+        { word: "Protestants", definition: "新教", dateAdded: 0 },
+        { word: "Crime", definition: "犯罪", dateAdded: 0 },
+        { word: "Tradition", definition: "传统", dateAdded: 0 },
+        { word: "Admiral", definition: "海军上将", dateAdded: 0 },
+        { word: "Associate", definition: "有关联", dateAdded: 0 },
+        { word: "Labour", definition: "工党（劳动）", dateAdded: 0 },
+        { word: "Invasion", definition: "侵略", dateAdded: 0 },
+        { word: "Colonel", definition: "上校", dateAdded: 0 },
+        { word: "Julius Caesar", definition: "凯撒", dateAdded: 0 },
+        { word: "Rugby", definition: "橄榄球", dateAdded: 0 },
+        { word: "Film", definition: "电影", dateAdded: 0 },
+        { word: "Court", definition: "法庭", dateAdded: 0 },
+        { word: "Youth", definition: "青少年", dateAdded: 0 },
+        { word: "Judge", definition: "法官", dateAdded: 0 },
+        { word: "Jury", definition: "陪审团", dateAdded: 0 },
+        { word: "Domestic violence", definition: "家庭暴力", dateAdded: 0 },
+        { word: "Refuge", definition: "避难所", dateAdded: 0 },
+        { word: "Method", definition: "方法", dateAdded: 0 },
+        { word: "Farming", definition: "农业，种植", dateAdded: 0 },
+        { word: "Casualties", definition: "伤亡", dateAdded: 0 },
+        { word: "Playwright", definition: "剧作家", dateAdded: 0 },
+        { word: "War of the roses", definition: "玫瑰之战", dateAdded: 0 }
     ];
-    // ==========================================
 
     const WORDS_PER_ROUND = 10;
     const MASTERY_TARGET = 5;
 
     let roundVocab = [];
+    let fullVocabList = [];
     let currentMode = '';
     let currentIndex = 0;
     let score = 0;
     let hasAnswered = false;
     let isFirstTry = true;
 
+    // --- Cloud Fetch on Load ---
+    window.onload = async function() {
+        try {
+            const response = await fetch(CLOUD_URL);
+            const cloudData = await response.json();
+            
+            // Sync progress
+            if (cloudData.progress) {
+                localStorage.setItem('ukVocabProgress', JSON.stringify(cloudData.progress));
+            }
+            
+            // Sync dictionary (if empty on cloud, use default)
+            if (cloudData.dictionary && cloudData.dictionary.length > 0) {
+                localStorage.setItem('ukVocabDictionary', JSON.stringify(cloudData.dictionary));
+            } else {
+                localStorage.setItem('ukVocabDictionary', JSON.stringify(defaultVocabularyList));
+            }
+            
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            updateArchiveStats();
+        } catch (error) {
+            document.getElementById('loadingScreen').innerText = "❌ Cloud connection failed. Please refresh.";
+            document.getElementById('loadingScreen').style.color = "#dc3545";
+        }
+    };
+
+    async function syncToCloud() {
+        document.getElementById('syncStatus').style.opacity = '1';
+        document.getElementById('syncStatus').innerText = "☁️ Syncing...";
+        
+        let payload = {
+            progress: getProgress(),
+            dictionary: getDictionary()
+        };
+
+        try {
+            await fetch(CLOUD_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+            document.getElementById('syncStatus').innerText = "☁️ Cloud synced successfully!";
+        } catch (error) {
+            document.getElementById('syncStatus').innerText = "❌ Cloud sync failed. Will retry later.";
+            document.getElementById('syncStatus').style.color = "#dc3545";
+        }
+        
+        setTimeout(() => { document.getElementById('syncStatus').style.opacity = '0'; }, 3000);
+    }
+
+    // Load entire dictionary from browser memory
+    function getDictionary() {
+        let stored = JSON.parse(localStorage.getItem('ukVocabDictionary'));
+        if (!stored || stored.length === 0) stored = defaultVocabularyList;
+        return stored;
+    }
+
+    // Progress Storage
     function getProgress() {
         return JSON.parse(localStorage.getItem('ukVocabProgress') || '{}');
     }
@@ -412,12 +561,28 @@
         if (!progress[word]) progress[word] = 0;
         progress[word]++;
         saveProgress(progress);
+        syncToCloud();
     }
 
     function updateArchiveStats() {
         let progress = getProgress();
         let masteredCount = Object.values(progress).filter(count => count >= MASTERY_TARGET).length;
-        document.getElementById('archiveStats').innerText = `🏆 Words Mastered (Archived): ${masteredCount}`;
+        document.getElementById('archiveStats').innerText = `🏆 Total Words Mastered: ${masteredCount}`;
+    }
+
+    // Filter Dictionary based on Time dropdown
+    function getFilteredDictionary() {
+        let dict = getDictionary();
+        let filterValue = document.getElementById('timeFilter').value;
+        let now = Date.now();
+        let oneWeek = 7 * 24 * 60 * 60 * 1000;
+        let oneMonth = 30 * 24 * 60 * 60 * 1000;
+
+        return dict.filter(item => {
+            if (filterValue === 'week') return (now - item.dateAdded) <= oneWeek;
+            if (filterValue === 'month') return (now - item.dateAdded) <= oneMonth;
+            return true; // 'all'
+        });
     }
 
     function shuffleArray(array) {
@@ -431,19 +596,68 @@
 
     function setupRoundVocab() {
         let progress = getProgress();
+        fullVocabList = getFilteredDictionary();
         
-        let availableVocab = masterVocabularyList.filter(item => {
+        let availableVocab = fullVocabList.filter(item => {
             return (progress[item.word] || 0) < MASTERY_TARGET;
         });
 
         if (availableVocab.length === 0) {
-            alert("Amazing! You have mastered all the words! We will review them all now.");
-            availableVocab = [...masterVocabularyList];
+            if (fullVocabList.length === 0) {
+                alert("No words found for this timeframe! Try adding some or changing the filter.");
+                return false; 
+            } else {
+                alert("Amazing! You have mastered all words in this category. We will review them all now.");
+                availableVocab = [...fullVocabList];
+            }
         }
 
         roundVocab = shuffleArray(availableVocab).slice(0, WORDS_PER_ROUND);
+        return true;
     }
 
+    // --- Add Word Logic ---
+    function openAddWordMenu() {
+        document.querySelectorAll('.app-area').forEach(el => el.style.display = 'none');
+        document.getElementById('mainMenu').style.display = 'none';
+        document.getElementById('addWordArea').style.display = 'block';
+        document.getElementById('addFeedback').innerText = '';
+    }
+
+    function saveNewWord() {
+        let wordInput = document.getElementById('newWordInput').value.trim();
+        let defInput = document.getElementById('newDefInput').value.trim();
+        let feedback = document.getElementById('addFeedback');
+
+        if (!wordInput || !defInput) {
+            feedback.innerText = "❌ Please enter both a word and a definition.";
+            feedback.style.color = "#dc3545";
+            return;
+        }
+
+        let dict = getDictionary();
+        if (dict.find(v => v.word.toLowerCase() === wordInput.toLowerCase())) {
+            feedback.innerText = "⚠️ This word already exists in your dictionary!";
+            feedback.style.color = "#ffc107";
+            return;
+        }
+
+        dict.push({
+            word: wordInput,
+            definition: defInput,
+            dateAdded: Date.now()
+        });
+        localStorage.setItem('ukVocabDictionary', JSON.stringify(dict));
+        
+        syncToCloud(); // Save new word to Google Sheets
+
+        document.getElementById('newWordInput').value = '';
+        document.getElementById('newDefInput').value = '';
+        feedback.innerText = `✅ "${wordInput}" added successfully!`;
+        feedback.style.color = "#28a745";
+    }
+
+    // --- Navigation ---
     function backToMenu() {
         document.querySelectorAll('.app-area').forEach(el => el.style.display = 'none');
         document.getElementById('mainMenu').style.display = 'block';
@@ -451,7 +665,9 @@
     }
 
     function startMode(mode) {
-        setupRoundVocab();
+        let hasWords = setupRoundVocab();
+        if (!hasWords) return;
+
         document.getElementById('mainMenu').style.display = 'none';
         
         currentMode = mode;
@@ -460,6 +676,7 @@
         else if (mode === 'match') startMatch();
     }
 
+    // --- Flashcard Mode Logic ---
     function startFlashcards() {
         currentIndex = 0;
         document.getElementById('flashcardArea').style.display = 'block';
@@ -500,6 +717,7 @@
         }
     }
 
+    // --- Quiz Mode Logic ---
     function startQuiz() {
         currentIndex = 0;
         score = 0;
@@ -517,7 +735,12 @@
         const currentItem = roundVocab[currentIndex];
 
         let options = [currentItem];
-        let wrongOptions = masterVocabularyList.filter(item => item.word !== currentItem.word);
+        let wrongOptions = fullVocabList.filter(item => item.word !== currentItem.word);
+        
+        if (wrongOptions.length < 3) {
+            wrongOptions = wrongOptions.concat(defaultVocabularyList.filter(item => item.word !== currentItem.word));
+        }
+
         wrongOptions = shuffleArray(wrongOptions).slice(0, 3);
         options = shuffleArray(options.concat(wrongOptions)); 
 
@@ -592,6 +815,7 @@
         }
     }
 
+    // --- Match Game Logic ---
     let matchSelection = [];
     let matchedPairs = 0;
 
@@ -669,8 +893,6 @@
 
         matchSelection = [];
     }
-
-    updateArchiveStats();
 </script>
 
 </body>
