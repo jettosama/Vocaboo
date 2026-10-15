@@ -604,27 +604,27 @@
     let isFirstTry = true;
     let currentDialogueRawWord = '';
 
-    // Simple A1/A2 conversation templates
+    // Simple A1/A2 conversation templates using {WORD} and {DEF} placeholders
     const dialogueTemplates = [
         {
-            t: "Can you explain what '[WORD]' means?",
-            s: "Yes, it relates to '[DEF]' in British society."
+            t: "Can you explain what \"{WORD}\" means?",
+            s: "Yes, it means \"{DEF}\" in British life."
         },
         {
-            t: "Have you read about '[WORD]' in Life in the UK?",
-            s: "Yes! Learning about '[WORD]' is important for the test."
+            t: "Have you read about \"{WORD}\" before?",
+            s: "Yes! Learning about {WORD} is important for Life in the UK."
         },
         {
-            t: "Can you make an easy sentence with '[WORD]'?",
-            s: "Sure! '[WORD]' is an important concept here."
+            t: "Can you make an easy sentence with \"{WORD}\"?",
+            s: "Sure! In the UK, \"{WORD}\" is very important."
         },
         {
-            t: "Is '[WORD]' familiar to you?",
-            s: "Yes, I understand that '[WORD]' means '[DEF]'."
+            t: "Is \"{WORD}\" familiar to you?",
+            s: "Yes, I know that \"{WORD}\" means \"{DEF}\"."
         },
         {
-            t: "Why do we study '[WORD]' today?",
-            s: "Because '[WORD]' helps us understand UK history and life."
+            t: "Why are we studying \"{WORD}\" today?",
+            s: "Because \"{WORD}\" helps us understand UK society and history."
         }
     ];
 
@@ -1063,15 +1063,20 @@
 
         const tpl = dialogueTemplates[Math.floor(Math.random() * dialogueTemplates.length)];
 
-        const teacherRendered = tpl.t.replace(/[WORD]/g, currentItem.word).replace(/[DEF]/g, currentItem.definition);
-        const studentRendered = tpl.s.replace(/[WORD]/g, `<span class="highlight">${currentItem.word}</span>`).replace(/[DEF]/g, currentItem.definition);
+        // Clean replacement with .split().join() to avoid regex character-class collisions
+        const teacherRendered = tpl.t
+            .split('{WORD}').join(currentItem.word)
+            .split('{DEF}').join(currentItem.definition);
+
+        const studentRendered = tpl.s
+            .split('{WORD}').join(`<span class="highlight">${currentItem.word}</span>`)
+            .split('{DEF}').join(currentItem.definition);
 
         document.getElementById('teacherText').innerHTML = teacherRendered;
         document.getElementById('studentText').innerHTML = studentRendered;
     }
 
     function nextDialogue() {
-        // Also reward progress when reviewing dialogue
         incrementMastery(roundVocab[currentIndex].word);
 
         if (currentIndex < roundVocab.length - 1) {
