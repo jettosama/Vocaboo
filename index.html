@@ -10,6 +10,7 @@
             --bg-color: #f6f7fb;
             --card-bg: #ffffff;
             --text-color: #333333;
+            --student-color: #10b981;
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -289,6 +290,85 @@
             100% { transform: translateX(0); }
         }
 
+        /* Mock Dialogue Styles */
+        .dialogue-word-badge {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 14px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .dialogue-word-badge .en {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .dialogue-word-badge .zh {
+            font-size: 16px;
+            color: #555;
+        }
+        .dialogue-box {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 0 auto 24px auto;
+            max-width: 600px;
+            text-align: left;
+        }
+        .bubble {
+            padding: 14px 18px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 17px;
+            position: relative;
+        }
+        .bubble.teacher {
+            background: #f8fafc;
+            border-left: 5px solid var(--primary-color);
+        }
+        .bubble.student {
+            background: #ecfdf5;
+            border-left: 5px solid var(--student-color);
+        }
+        .role-header {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .bubble.teacher .role-header { color: var(--primary-color); }
+        .bubble.student .role-header { color: var(--student-color); }
+        .highlight {
+            background: #fef08a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            color: #111;
+        }
+        .audio-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+            margin: 0;
+            color: inherit;
+        }
+        .audio-btn:hover {
+            transform: scale(1.15);
+            background: none;
+        }
+
         .feedback {
             margin-top: 20px;
             font-size: 18px;
@@ -348,6 +428,7 @@
             <button onclick="startMode('wordToDef')">📝 定义四选一 (Word &rarr; 4 Defs)</button>
             <button onclick="startMode('defToWord')">📝 词汇四选一 (Def &rarr; 4 Words)</button>
             <button onclick="startMode('match')">🧩 配对游戏 (Match Game)</button>
+            <button onclick="startMode('dialogue')">💬 师生情景模拟 (Mock Dialogue)</button>
             <hr style="width: 100%; border: 1px solid #e0e0e0; margin: 10px 0;">
             <button class="action-btn" onclick="openAddWordMenu()">➕ Add New Word</button>
         </div>
@@ -407,6 +488,40 @@
         <p>Match the word to its definition to clear the board!</p>
         <div class="match-grid" id="matchGrid"></div>
         <div class="feedback" id="matchFeedback"></div>
+    </div>
+
+    <!-- Mock Dialogue Area -->
+    <div class="app-area" id="dialogueArea">
+        <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
+        <div class="stats" id="dialogueStats">Dialogue 1 of 10</div>
+
+        <div class="dialogue-word-badge">
+            <div>
+                <span class="en" id="currentDialogueWord">Word</span>
+                <button class="audio-btn" onclick="speakText(currentDialogueRawWord)" title="Pronounce word">🔊</button>
+            </div>
+            <div class="zh" id="currentDialogueDef">Definition</div>
+        </div>
+
+        <div class="dialogue-box">
+            <div class="bubble teacher">
+                <div class="role-header">
+                    <span>Teacher (老师)</span>
+                    <button class="audio-btn" onclick="speakText(document.getElementById('teacherText').innerText)" title="Read line">🔊</button>
+                </div>
+                <div id="teacherText">Teacher question goes here.</div>
+            </div>
+
+            <div class="bubble student">
+                <div class="role-header">
+                    <span>Student (学生)</span>
+                    <button class="audio-btn" onclick="speakText(document.getElementById('studentText').innerText)" title="Read line">🔊</button>
+                </div>
+                <div id="studentText">Student response goes here.</div>
+            </div>
+        </div>
+
+        <button class="action-btn" onclick="nextDialogue()" style="width: 100%; max-width: 400px; margin: 0 auto 10px auto;">Next Dialogue &rarr;</button>
     </div>
 </div>
 
@@ -487,6 +602,31 @@
     let score = 0;
     let hasAnswered = false;
     let isFirstTry = true;
+    let currentDialogueRawWord = '';
+
+    // Simple A1/A2 conversation templates
+    const dialogueTemplates = [
+        {
+            t: "Can you explain what '[WORD]' means?",
+            s: "Yes, it relates to '[DEF]' in British society."
+        },
+        {
+            t: "Have you read about '[WORD]' in Life in the UK?",
+            s: "Yes! Learning about '[WORD]' is important for the test."
+        },
+        {
+            t: "Can you make an easy sentence with '[WORD]'?",
+            s: "Sure! '[WORD]' is an important concept here."
+        },
+        {
+            t: "Is '[WORD]' familiar to you?",
+            s: "Yes, I understand that '[WORD]' means '[DEF]'."
+        },
+        {
+            t: "Why do we study '[WORD]' today?",
+            s: "Because '[WORD]' helps us understand UK history and life."
+        }
+    ];
 
     // --- Cloud Fetch on Load ---
     window.onload = async function() {
@@ -616,6 +756,17 @@
         return true;
     }
 
+    // --- Audio Synthesis Helper ---
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const cleanText = text.replace(/Teacher \(老师\)|Student \(学生\)/gi, '').trim();
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'en-GB';
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
     // --- Add Word Logic ---
     function openAddWordMenu() {
         document.querySelectorAll('.app-area').forEach(el => el.style.display = 'none');
@@ -649,7 +800,7 @@
         });
         localStorage.setItem('ukVocabDictionary', JSON.stringify(dict));
         
-        syncToCloud(); // Save new word to Google Sheets
+        syncToCloud();
 
         document.getElementById('newWordInput').value = '';
         document.getElementById('newDefInput').value = '';
@@ -674,6 +825,7 @@
         if (mode === 'flashcard') startFlashcards();
         else if (mode === 'wordToDef' || mode === 'defToWord') startQuiz();
         else if (mode === 'match') startMatch();
+        else if (mode === 'dialogue') startDialogue();
     }
 
     // --- Flashcard Mode Logic ---
@@ -892,6 +1044,43 @@
         }
 
         matchSelection = [];
+    }
+
+    // --- Mock Dialogue Logic ---
+    function startDialogue() {
+        currentIndex = 0;
+        document.getElementById('dialogueArea').style.display = 'block';
+        loadDialogue();
+    }
+
+    function loadDialogue() {
+        const currentItem = roundVocab[currentIndex];
+        currentDialogueRawWord = currentItem.word;
+        
+        document.getElementById('dialogueStats').innerText = `Dialogue ${currentIndex + 1} of ${roundVocab.length}`;
+        document.getElementById('currentDialogueWord').innerText = currentItem.word;
+        document.getElementById('currentDialogueDef').innerText = currentItem.definition;
+
+        const tpl = dialogueTemplates[Math.floor(Math.random() * dialogueTemplates.length)];
+
+        const teacherRendered = tpl.t.replace(/[WORD]/g, currentItem.word).replace(/[DEF]/g, currentItem.definition);
+        const studentRendered = tpl.s.replace(/[WORD]/g, `<span class="highlight">${currentItem.word}</span>`).replace(/[DEF]/g, currentItem.definition);
+
+        document.getElementById('teacherText').innerHTML = teacherRendered;
+        document.getElementById('studentText').innerHTML = studentRendered;
+    }
+
+    function nextDialogue() {
+        // Also reward progress when reviewing dialogue
+        incrementMastery(roundVocab[currentIndex].word);
+
+        if (currentIndex < roundVocab.length - 1) {
+            currentIndex++;
+            loadDialogue();
+        } else {
+            alert("Great practice! You've reviewed all dialogues for this round.");
+            backToMenu();
+        }
     }
 </script>
 
