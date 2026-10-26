@@ -142,7 +142,7 @@
         .flashcard {
             width: 100%;
             max-width: 500px;
-            height: 250px;
+            height: 350px;
             perspective: 1000px;
             margin: 0 auto 20px auto;
             cursor: pointer;
@@ -184,12 +184,34 @@
             transform: rotateX(180deg);
             font-size: 20px;
             border: 2px solid var(--primary-color);
+            flex-direction: column;
+            overflow-y: auto;
         }
         .flashcard-controls {
             display: flex;
             justify-content: space-between;
             max-width: 500px;
             margin: 20px auto 0 auto;
+        }
+        
+        #vocab-image {
+            max-width: 100%;
+            max-height: 140px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+
+        .notes-section {
+            font-size: 15px;
+            color: #444;
+            margin-top: 15px;
+            display: none;
+            border-top: 1px solid #c8d4ff;
+            padding-top: 10px;
+            width: 100%;
+            line-height: 1.4;
         }
 
         /* Quiz Styles */
@@ -360,11 +382,19 @@
         <h2>Add New Vocabulary</h2>
         <div class="input-group">
             <label>Word:</label>
-            <input type="text" id="newWordInput" placeholder="e.g. Heritage">
+            <input type="text" id="newWordInput" placeholder="e.g. Constitution">
         </div>
         <div class="input-group">
             <label>Definition (Chinese or English):</label>
-            <input type="text" id="newDefInput" placeholder="e.g. 遗产 / 传统">
+            <input type="text" id="newDefInput" placeholder="e.g. 宪法">
+        </div>
+        <div class="input-group">
+            <label>Memory Hint / Notes (Optional):</label>
+            <input type="text" id="newNotesInput" placeholder="e.g. 控制途径 - Kong zhi tu jing">
+        </div>
+        <div class="input-group">
+            <label>Google Drive Image URL (Optional):</label>
+            <input type="text" id="newImageInput" placeholder="Paste Google Drive share link">
         </div>
         <button class="action-btn" onclick="saveNewWord()" style="width: 100%; max-width: 400px;">Save Word</button>
         <p id="addFeedback" class="feedback" style="font-size: 16px;"></p>
@@ -379,7 +409,11 @@
         <div class="flashcard" id="flashcard" onclick="flipCard()">
             <div class="flashcard-inner">
                 <div class="flashcard-front" id="flashcardFront">Word</div>
-                <div class="flashcard-back" id="flashcardBack">Definition</div>
+                <div class="flashcard-back">
+                    <div id="flashcardBackDef" style="font-weight: bold;">Definition</div>
+                    <img id="vocab-image" src="" alt="Vocabulary Image">
+                    <div id="vocab-notes" class="notes-section"></div>
+                </div>
             </div>
         </div>
 
@@ -487,6 +521,16 @@
     let score = 0;
     let hasAnswered = false;
     let isFirstTry = true;
+
+    // Helper: Convert Google Drive Link to direct Image URL
+    function getDirectDriveUrl(url) {
+        if (!url) return null;
+        const match = url.match(/\/d\/(.+?)\//) || url.match(/id=(.+?)(&|$)/);
+        if (match && match[1]) {
+            return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+        }
+        return url; 
+    }
 
     // --- Cloud Fetch on Load ---
     window.onload = async function() {
@@ -622,11 +666,18 @@
         document.getElementById('mainMenu').style.display = 'none';
         document.getElementById('addWordArea').style.display = 'block';
         document.getElementById('addFeedback').innerText = '';
+        
+        document.getElementById('newWordInput').value = '';
+        document.getElementById('newDefInput').value = '';
+        document.getElementById('newNotesInput').value = '';
+        document.getElementById('newImageInput').value = '';
     }
 
     function saveNewWord() {
         let wordInput = document.getElementById('newWordInput').value.trim();
         let defInput = document.getElementById('newDefInput').value.trim();
+        let notesInput = document.getElementById('newNotesInput').value.trim();
+        let imageInput = document.getElementById('newImageInput').value.trim();
         let feedback = document.getElementById('addFeedback');
 
         if (!wordInput || !defInput) {
@@ -645,14 +696,18 @@
         dict.push({
             word: wordInput,
             definition: defInput,
+            notes: notesInput,
+            imageUrl: imageInput,
             dateAdded: Date.now()
         });
         localStorage.setItem('ukVocabDictionary', JSON.stringify(dict));
         
-        syncToCloud(); // Save new word to Google Sheets
+        syncToCloud(); 
 
         document.getElementById('newWordInput').value = '';
         document.getElementById('newDefInput').value = '';
+        document.getElementById('newNotesInput').value = '';
+        document.getElementById('newImageInput').value = '';
         feedback.innerText = `✅ "${wordInput}" added successfully!`;
         feedback.style.color = "#28a745";
     }
@@ -685,9 +740,32 @@
     }
 
     function updateFlashcard() {
+        const currentItem = roundVocab[currentIndex];
+        
         document.getElementById('flashcardStats').innerText = `Card ${currentIndex + 1} of ${roundVocab.length}`;
-        document.getElementById('flashcardFront').innerText = roundVocab[currentIndex].word;
-        document.getElementById('flashcardBack').innerText = roundVocab[currentIndex].definition;
+        document.getElementById('flashcardFront').innerText = currentItem.word;
+        document.getElementById('flashcardBackDef').innerText = currentItem.definition;
+        
+        // Handle Image
+        const imgEl = document.getElementById('vocab-image');
+        const directUrl = getDirectDriveUrl(currentItem.imageUrl);
+        if (directUrl) {
+            imgEl.src = directUrl;
+            imgEl.style.display = 'block';
+        } else {
+            imgEl.src = '';
+            imgEl.style.display = 'none';
+        }
+        
+        // Handle Notes
+        const notesEl = document.getElementById('vocab-notes');
+        if (currentItem.notes) {
+            notesEl.innerHTML = `<strong>💡 Hint:</strong> ${currentItem.notes}`;
+            notesEl.style.display = 'block';
+        } else {
+            notesEl.style.display = 'none';
+            notesEl.innerHTML = '';
+        }
     }
 
     function flipCard() {
