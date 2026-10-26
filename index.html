@@ -62,6 +62,8 @@
             font-size: 14px;
             background-color: white;
             cursor: pointer;
+            width: 100%;
+            max-width: 400px;
         }
         .menu-buttons {
             display: flex;
@@ -94,6 +96,12 @@
         .action-btn:hover {
             background-color: #218838;
         }
+        .edit-btn {
+            background-color: #ff9800;
+        }
+        .edit-btn:hover {
+            background-color: #e68a00;
+        }
         .back-btn {
             background-color: #6c757d; 
             margin-bottom: 20px; 
@@ -112,7 +120,7 @@
             margin-top: 20px;
         }
         
-        #mainMenu { display: none; } /* Hidden initially while loading */
+        #mainMenu { display: none; }
         #loadingScreen { margin-top: 40px; font-size: 18px; font-weight: bold; color: var(--primary-color); }
 
         /* Form Styles */
@@ -171,6 +179,7 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             padding: 20px;
             box-sizing: border-box;
+            flex-direction: column;
         }
         .flashcard-front {
             background-color: var(--primary-color);
@@ -184,7 +193,6 @@
             transform: rotateX(180deg);
             font-size: 20px;
             border: 2px solid var(--primary-color);
-            flex-direction: column;
             overflow-y: auto;
         }
         .flashcard-controls {
@@ -194,13 +202,14 @@
             margin: 20px auto 0 auto;
         }
         
-        #vocab-image {
+        #vocab-image-front {
             max-width: 100%;
-            max-height: 140px;
+            max-height: 160px;
             border-radius: 8px;
-            margin-top: 15px;
+            margin-top: 20px;
             display: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            border: 2px solid white;
         }
 
         .notes-section {
@@ -372,6 +381,7 @@
             <button onclick="startMode('match')">🧩 配对游戏 (Match Game)</button>
             <hr style="width: 100%; border: 1px solid #e0e0e0; margin: 10px 0;">
             <button class="action-btn" onclick="openAddWordMenu()">➕ Add New Word</button>
+            <button class="edit-btn" onclick="openEditWordMenu()">✏️ Edit Vocabulary</button>
         </div>
         <p id="syncStatus">☁️ Cloud synced successfully!</p>
     </div>
@@ -400,6 +410,30 @@
         <p id="addFeedback" class="feedback" style="font-size: 16px;"></p>
     </div>
 
+    <!-- Edit Word Area -->
+    <div class="app-area" id="editWordArea">
+        <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
+        <h2>Edit Vocabulary</h2>
+        <div class="input-group">
+            <label>Select Word to Edit:</label>
+            <select id="editWordSelect" onchange="loadSelectedWordDetails()"></select>
+        </div>
+        <div class="input-group">
+            <label>Definition (Chinese or English):</label>
+            <input type="text" id="editDefInput">
+        </div>
+        <div class="input-group">
+            <label>Memory Hint / Notes (Optional):</label>
+            <input type="text" id="editNotesInput">
+        </div>
+        <div class="input-group">
+            <label>Google Drive Image URL (Optional):</label>
+            <input type="text" id="editImageInput">
+        </div>
+        <button class="edit-btn" onclick="saveEditedWord()" style="width: 100%; max-width: 400px;">Save Changes</button>
+        <p id="editFeedback" class="feedback" style="font-size: 16px;"></p>
+    </div>
+
     <!-- Flashcard Area -->
     <div class="app-area" id="flashcardArea">
         <button class="back-btn" onclick="backToMenu()">&larr; Back to Menu</button>
@@ -408,10 +442,12 @@
         
         <div class="flashcard" id="flashcard" onclick="flipCard()">
             <div class="flashcard-inner">
-                <div class="flashcard-front" id="flashcardFront">Word</div>
+                <div class="flashcard-front">
+                    <div id="flashcardFrontText">Word</div>
+                    <img id="vocab-image-front" src="" alt="Vocabulary Image">
+                </div>
                 <div class="flashcard-back">
                     <div id="flashcardBackDef" style="font-weight: bold;">Definition</div>
-                    <img id="vocab-image" src="" alt="Vocabulary Image">
                     <div id="vocab-notes" class="notes-section"></div>
                 </div>
             </div>
@@ -538,12 +574,10 @@
             const response = await fetch(CLOUD_URL);
             const cloudData = await response.json();
             
-            // Sync progress
             if (cloudData.progress) {
                 localStorage.setItem('ukVocabProgress', JSON.stringify(cloudData.progress));
             }
             
-            // Sync dictionary (if empty on cloud, use default)
             if (cloudData.dictionary && cloudData.dictionary.length > 0) {
                 localStorage.setItem('ukVocabDictionary', JSON.stringify(cloudData.dictionary));
             } else {
@@ -583,14 +617,12 @@
         setTimeout(() => { document.getElementById('syncStatus').style.opacity = '0'; }, 3000);
     }
 
-    // Load entire dictionary from browser memory
     function getDictionary() {
         let stored = JSON.parse(localStorage.getItem('ukVocabDictionary'));
         if (!stored || stored.length === 0) stored = defaultVocabularyList;
         return stored;
     }
 
-    // Progress Storage
     function getProgress() {
         return JSON.parse(localStorage.getItem('ukVocabProgress') || '{}');
     }
@@ -614,7 +646,7 @@
         document.getElementById('archiveStats').innerText = `🏆 Total Words Mastered: ${masteredCount}`;
     }
 
-    // Filter Dictionary based on Time dropdown
+    // Fixed Date Filter Logic
     function getFilteredDictionary() {
         let dict = getDictionary();
         let filterValue = document.getElementById('timeFilter').value;
@@ -623,9 +655,21 @@
         let oneMonth = 30 * 24 * 60 * 60 * 1000;
 
         return dict.filter(item => {
-            if (filterValue === 'week') return (now - item.dateAdded) <= oneWeek;
-            if (filterValue === 'month') return (now - item.dateAdded) <= oneMonth;
-            return true; // 'all'
+            if (filterValue === 'all') return true;
+            
+            // Ensure strict numeric evaluation to prevent old words from slipping through
+            let addedTime = Number(item.dateAdded) || 0; 
+            
+            // Exclude defaults (0 date) entirely from time-based filters
+            if (addedTime === 0) return false; 
+
+            let timeDiff = now - addedTime;
+            
+            // Ensure timeDiff is positive and within the boundary
+            if (filterValue === 'week') return timeDiff >= 0 && timeDiff <= oneWeek;
+            if (filterValue === 'month') return timeDiff >= 0 && timeDiff <= oneMonth;
+            
+            return true;
         });
     }
 
@@ -712,6 +756,80 @@
         feedback.style.color = "#28a745";
     }
 
+    // --- Edit Word Logic ---
+    function openEditWordMenu() {
+        document.querySelectorAll('.app-area').forEach(el => el.style.display = 'none');
+        document.getElementById('mainMenu').style.display = 'none';
+        document.getElementById('editWordArea').style.display = 'block';
+        document.getElementById('editFeedback').innerText = '';
+        
+        let select = document.getElementById('editWordSelect');
+        select.innerHTML = '<option value="" disabled selected>Select a word...</option>';
+        
+        let dict = getDictionary();
+        // Sort alphabetically for easier finding
+        dict.sort((a, b) => a.word.localeCompare(b.word)).forEach((item, index) => {
+            let opt = document.createElement('option');
+            opt.value = item.word; // Use word as identifier
+            opt.innerText = item.word;
+            select.appendChild(opt);
+        });
+
+        // Clear fields
+        document.getElementById('editDefInput').value = '';
+        document.getElementById('editNotesInput').value = '';
+        document.getElementById('editImageInput').value = '';
+    }
+
+    function loadSelectedWordDetails() {
+        let selectedWord = document.getElementById('editWordSelect').value;
+        let dict = getDictionary();
+        let item = dict.find(v => v.word === selectedWord);
+        
+        if (item) {
+            document.getElementById('editDefInput').value = item.definition || '';
+            document.getElementById('editNotesInput').value = item.notes || '';
+            document.getElementById('editImageInput').value = item.imageUrl || '';
+            document.getElementById('editFeedback').innerText = '';
+        }
+    }
+
+    function saveEditedWord() {
+        let selectedWord = document.getElementById('editWordSelect').value;
+        let defInput = document.getElementById('editDefInput').value.trim();
+        let notesInput = document.getElementById('editNotesInput').value.trim();
+        let imageInput = document.getElementById('editImageInput').value.trim();
+        let feedback = document.getElementById('editFeedback');
+
+        if (!selectedWord) {
+            feedback.innerText = "❌ Please select a word to edit.";
+            feedback.style.color = "#dc3545";
+            return;
+        }
+
+        if (!defInput) {
+            feedback.innerText = "❌ Definition cannot be empty.";
+            feedback.style.color = "#dc3545";
+            return;
+        }
+
+        let dict = getDictionary();
+        let itemIndex = dict.findIndex(v => v.word === selectedWord);
+        
+        if (itemIndex > -1) {
+            dict[itemIndex].definition = defInput;
+            dict[itemIndex].notes = notesInput;
+            dict[itemIndex].imageUrl = imageInput;
+            // Note: we purposely do NOT update DateAdded here, so editing an old word doesn't push it into the "newly added" filter.
+            
+            localStorage.setItem('ukVocabDictionary', JSON.stringify(dict));
+            syncToCloud();
+            
+            feedback.innerText = `✅ "${selectedWord}" updated successfully!`;
+            feedback.style.color = "#28a745";
+        }
+    }
+
     // --- Navigation ---
     function backToMenu() {
         document.querySelectorAll('.app-area').forEach(el => el.style.display = 'none');
@@ -743,11 +861,11 @@
         const currentItem = roundVocab[currentIndex];
         
         document.getElementById('flashcardStats').innerText = `Card ${currentIndex + 1} of ${roundVocab.length}`;
-        document.getElementById('flashcardFront').innerText = currentItem.word;
+        document.getElementById('flashcardFrontText').innerText = currentItem.word;
         document.getElementById('flashcardBackDef').innerText = currentItem.definition;
         
-        // Handle Image
-        const imgEl = document.getElementById('vocab-image');
+        // Handle Image on the FRONT of the card
+        const imgEl = document.getElementById('vocab-image-front');
         const directUrl = getDirectDriveUrl(currentItem.imageUrl);
         if (directUrl) {
             imgEl.src = directUrl;
@@ -757,7 +875,7 @@
             imgEl.style.display = 'none';
         }
         
-        // Handle Notes
+        // Handle Notes on the BACK of the card
         const notesEl = document.getElementById('vocab-notes');
         if (currentItem.notes) {
             notesEl.innerHTML = `<strong>💡 Hint:</strong> ${currentItem.notes}`;
